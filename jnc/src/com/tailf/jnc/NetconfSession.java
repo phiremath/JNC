@@ -1359,6 +1359,34 @@ public class NetconfSession {
     }
 
     /**
+     * Same as {@link #createSubscription(String,NodeSet,String,String)} except
+     * no filter is required or filter is null.
+     * 
+     * @param streamName The name of the stream or <code>null</code>
+     * @param startTime a dateTime string specifying the replay start, or
+     *            <code>null</code>
+     * @param stopTime a dateTime string specifying the stop of replay, or
+     *            <code>null</code>
+     * @see #receiveNotification()
+     */
+    public void createSubscription(String streamName,
+            String startTime, String stopTime) throws IOException,
+            JNCException {
+        trace("createSubscription: stream=" + streamName + " from=" + startTime + " to=" + stopTime);
+        if (!capabilities.hasNotification()) {
+            throw new JNCException(JNCException.SESSION_ERROR,
+                    "capability :notification is not supported by server");
+        }
+        if (!capabilities.hasXPath()) {
+            throw new JNCException(JNCException.SESSION_ERROR,
+                    "capability :xpath is not supported by server");
+        }
+        final int mid = encode_createSubscription(out, streamName, startTime, stopTime);
+        out.flush();
+        recv_rpc_reply_ok(mid);
+    } 
+    
+    /**
      * Method to get the available streams from the agent. This will do:
      * 
      * <pre>
@@ -2512,6 +2540,51 @@ public class NetconfSession {
         return mid;
     }
 
+    /**
+     * Encode the &lt;create-subscription&gt;. 
+     * Same as {@link #encode_createSubscription(Transport, String, String, String, String)} but 
+     * does not require passing filter.
+     * 
+     * Example:
+     * 
+     * <pre>
+     * &lt;rpc message-id="101"
+     *      xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"&gt;
+     *    &lt;create-subscription
+     *         xmlns='urn:ietf:params:xml:ns:netconf:notification:1.0'&gt;
+     *    &lt;/create-subscription&gt;
+     * &lt;/rpc&gt;
+     * </pre>
+     */
+    int encode_createSubscription(Transport out, String stream, String startTime, String stopTime) {
+        final String prefix = Element.defaultPrefixes
+                .nsToPrefix(Capabilities.NS_NOTIFICATION);
+        final String ncn = mk_prefix_colon(prefix);
+        final String xmlnsAttr = mk_xmlns_attr(prefix,
+                Capabilities.NS_NOTIFICATION);
+
+        final int mid = encode_rpc_begin(out);
+        out.println("<" + ncn + "create-subscription " + xmlnsAttr + ">");
+        if (stream != null) {
+            out.print("<" + ncn + STREAM_GT);
+            out.print(stream);
+            out.println("</" + ncn + STREAM_GT);
+        }
+        if (startTime != null) {
+            out.print("<" + ncn + START_TIME_GT);
+            out.print(startTime);
+            out.println("</" + ncn + START_TIME_GT);
+        }
+        if (stopTime != null) {
+            out.print("<" + ncn + STOP_TIME_GT);
+            out.print(stopTime);
+            out.println("</" + ncn + STOP_TIME_GT);
+        }
+        out.println("</" + ncn + "create-subscription>");
+        encode_rpc_end(out);
+        return mid;      
+    }
+    
     /**
      * Encodes an Element tree (data) and sends it to out.
      * <p>
